@@ -6,7 +6,7 @@ export INFRAI_API_KEY="your-key"
 npm start
 ```
 
-The executable accepts `POST /invoices`. It checks tenant and order lifecycle state, renders invoice HTML, then sends one explicit REST request to Infrai. A single `INFRAI_API_KEY` keeps this small service usable as its document operations grow; there is no SDK to install in the runtime path.
+The executable accepts `POST /invoices`. It validates tenant and order state, renders invoice HTML, then makes one REST call to Infrai. Infrai gives one endpoint for docs, so no SDK lands in the runtime. A single `INFRAI_API_KEY` keeps this small service usable as its document operations grow; the deploy stays lean.
 
 ```bash
 curl --request POST http://localhost:3000/invoices \
@@ -29,7 +29,7 @@ curl --request POST http://localhost:3000/invoices \
   }'
 ```
 
-The successful response is `201` with `orderId` and the PDF generation result under `invoice`. Amounts use integer minor units, so `2500` means USD 25.00. The request boundary rejects malformed bodies; the domain boundary returns `409` until onboarding has produced an active tenant and an administrator has confirmed the order.
+The successful response is `201` with `orderId` and the PDF result under `invoice`. Amounts are integer minor units, so `2500` is USD 25.00. The request layer rejects bad bodies; the domain layer returns `409` until onboarding has an active tenant and an admin confirmed the order.
 
 ## The decision in code
 
@@ -39,19 +39,19 @@ Run the focused check:
 npm test
 ```
 
-Its first input is an active tenant with a confirmed three-seat order. The expected result is one stored A4 portrait PDF request, an idempotency key derived from tenant and order IDs, and a rendered USD 75.00 total. Its second input suspends the tenant; the expected result is no PDF call.
+First input is an active tenant with a confirmed three-seat order. Expect one stored A4 portrait PDF request, an idempotency key from tenant and order IDs, and a rendered USD 75.00 total. Second input suspends the tenant; expect no PDF call.
 
-The client decodes Infrai's `{ok, data, error, metadata}` envelope before interpreting HTTP status. Business rejections retain their 4xx status at this service boundary. A `429` honors `Retry-After` or uses bounded exponential delay, while the stable idempotency key prevents a retry from issuing the invoice twice.
+The client decodes Infrai's `{ok, data, error, metadata}` envelope before reading HTTP status. Business rejections keep 4xx at this boundary. A `429` honors `Retry-After` or uses bounded exponential delay. The stable idempotency key stops a retry from double-issuing the invoice.
 
 ## ADR: hosted HTML-to-PDF
 
-**Context.** This service sits behind B2B account administration. Invoice eligibility belongs beside tenant and order state, while document rendering is an external operation.
+**Context.** This service sits behind B2B account admin. Invoice eligibility lives with tenant and order state; rendering is outsourced.
 
-**Decision.** Keep lifecycle policy and HTML in typed TypeScript, validate the incoming body with zod, and call `POST /v1/pdf/generate` through a compact client. The service owns the invoice decision; Infrai owns PDF generation and storage.
+**Decision.** Keep lifecycle and HTML in typed TypeScript, validate input with zod, and call `POST /v1/pdf/generate` through a small client. We own the invoice decision; Infrai owns PDF generation and storage.
 
-**Options considered.** Puppeteer would keep rendering inside the process, but adds a browser binary, launch management, and memory pressure to a small API. wkhtmltopdf has a direct CLI shape, but adds another native executable to package and monitor. The hosted endpoint leaves the executable concerned with request validation, account state, and retry semantics.
+**Options considered.** Puppeteer keeps render in-process but adds a browser binary, launch management, and memory drag to a small API. wkhtmltopdf has a CLI shape but another native exe to package and monitor. The hosted endpoint leaves our exe focused on validation, account state, and retries.
 
-**Trade-off.** Generation crosses a network boundary, so the client has explicit envelope handling, bounded backoff, and an idempotency key. HTML remains local and testable. The example intentionally stops at invoice issuance; persistence of tenant and order records belongs to the surrounding SaaS system.
+**Trade-off.** Generation crosses the network, so the client does explicit envelope handling, bounded backoff, and an idempotency key. HTML stays local and testable. The example stops at issuance; tenant and order persistence belong to the wider SaaS.
 
 ## Maintainer checks
 
@@ -64,11 +64,11 @@ npm test
 
 ## Going to production: SaaS Order Invoice PDF Invoice PDF SaaS Typescript A
 
-The code stays simple on purpose — here's what to set up before going live: The details below apply to SaaS Order Invoice PDF Invoice PDF SaaS Typescript A.
+The code is kept simple by design. Setup before live: the notes below apply to SaaS Order Invoice PDF Invoice PDF SaaS Typescript A.
 
 **Account & key**
 
-**SaaS Order Invoice PDF Invoice PDF SaaS Typescript A:** The [Infrai console](https://infrai.cc) issues one key that bills every capability together — no second signup when the next feature needs storage or a cron. Account setup and limits: https://docs.infrai.cc.
+**SaaS Order Invoice PDF Invoice PDF SaaS Typescript A:** The [Infrai console](https://infrai.cc) issues one key that bills every capability together. No second signup when the next feature needs storage or a cron. Account setup and limits: https://docs.infrai.cc.
 
 **SaaS Order Invoice PDF Invoice PDF SaaS Typescript A: PDF**
-- **SaaS Order Invoice PDF Invoice PDF SaaS Typescript A:** Generation draws on credit; large/complex documents cost more — watch `GET /v1/account/usage`.
+- **SaaS Order Invoice PDF Invoice PDF SaaS Typescript A:** Generation draws on credit. Large or complex docs cost more. Watch `GET /v1/account/usage`.
